@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tic Tac Toe Online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one centered column. Lobby card -> game board. Marks are drawn, X in ink, O in accent. */
+  :root {
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --ink: #1b2230;
+    --muted: #5b6577;
+    --line: #d5d9e2;
+    --accent: #2f6bff;
+    --accent-ink: #ffffff;
+    --good: #138a4b;
+    --bad: #c63b3b;
+    --font-display: "Space Grotesk", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151c; --surface: #1c212c; --ink: #eef1f7; --muted: #99a3b6;
+      --line: #313847; --accent: #6c97ff; --accent-ink: #0d1220;
+      --good: #4cd18a; --bad: #ff7a7a; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151c; --surface: #1c212c; --ink: #eef1f7; --muted: #99a3b6;
+    --line: #313847; --accent: #6c97ff; --accent-ink: #0d1220;
+    --good: #4cd18a; --bad: #ff7a7a; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 var(--font-body);
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  main { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 20px; padding-top: 4vh; }
+  h1 { font: 700 1.9rem/1.1 var(--font-display); margin: 0; letter-spacing: -0.02em; }
+  h1 span { color: var(--accent); }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  label { font-size: .8rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  input {
+    font: 600 1.4rem var(--font-display); letter-spacing: .25em; text-transform: uppercase; text-align: center;
+    width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink);
+  }
+  button {
+    font: 600 1rem var(--font-body); padding: 12px 16px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; min-width: 0; }
+  .divider { text-align: center; font-size: .85rem; color: var(--muted); }
+
+  .code { font: 700 2.4rem var(--font-display); letter-spacing: .3em; text-align: center; padding-left: .3em; }
+  .status { font: 500 1.1rem var(--font-display); text-align: center; min-height: 1.6em; }
+  .status.win { color: var(--good); }
+  .status.lose { color: var(--bad); }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: .9rem; }
+  .pill { padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); font-weight: 600; font-size: .85rem; }
+  .pill.on { border-color: var(--accent); color: var(--accent); }
+
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: var(--line); padding: 8px; border-radius: 16px; }
+  .cell {
+    aspect-ratio: 1; padding: 0; border: 0; border-radius: 10px; background: var(--surface);
+    display: grid; place-items: center; font: 700 clamp(2.4rem, 16vw, 4rem) var(--font-display); line-height: 1;
+  }
+  .cell:not(:disabled):hover { background: var(--bg); }
+  .cell.X { color: var(--ink); }
+  .cell.O { color: var(--accent); }
+  .cell.win { background: color-mix(in srgb, var(--good) 22%, var(--surface)); }
+  .cell:disabled { cursor: default; opacity: 1; }
+  .hint { font-size: .85rem; text-align: center; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: no-preference) { .cell, button { transition: background .12s; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Tic Tac Toe <span>Online</span></h1>
+    <p class="muted">Two devices, one game. No account needed.</p>
+  </header>
+
+  <!-- Lobby -->
+  <section id="lobby" class="card">
+    <button id="create" class="primary">Create a game</button>
+    <div class="divider">or join a friend</div>
+    <div>
+      <label for="joinCode">Game code</label>
+      <input id="joinCode" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE">
+    </div>
+    <button id="join">Join game</button>
+    <p id="lobbyMsg" class="hint muted" role="status"></p>
+  </section>
+
+  <!-- Waiting for opponent -->
+  <section id="waiting" class="card" hidden>
+    <label>Your game code</label>
+    <div id="hostCode" class="code">-----</div>
+    <div class="row">
+      <button id="copyCode">Copy code</button>
+      <button id="copyLink">Copy link</button>
+    </div>
+    <p class="hint muted">Send the code or link to your friend. The game starts when they join.</p>
+    <button id="cancel">Cancel</button>
+  </section>
+
+  <!-- Game -->
+  <section id="game" hidden>
+    <div class="card">
+      <div class="bar">
+        <span id="youAre" class="pill"></span>
+        <span class="muted">Room <strong id="roomLabel"></strong></span>
+        <span id="score" class="muted"></span>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+      <div id="board" class="board"></div>
+      <div class="row">
+        <button id="again" class="primary" hidden>Play again</button>
+        <button id="leave">Leave</button>
+      </div>
+      <p id="gameMsg" class="hint muted"></p>
+    </div>
+  </section>
+</main>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var PREFIX = "tictactoe-mini-";
+  var ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  var LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var peer = null, conn = null;
+  var isHost = false, myMark = "X", roomCode = "";
+  var state = null;                    // authoritative on host, mirrored on guest
+  var score = { X: 0, O: 0, draws: 0 };
+  var starter = "X";
+
+  function show(which) {
+    ["lobby", "waiting", "game"].forEach(function (id) { $(id).hidden = id !== which; });
+  }
+  function randomCode() {
+    var s = "";
+    for (var i = 0; i < 5; i++) s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+    return s;
+  }
+  function freshState(first) {
+    return { board: Array(9).fill(""), turn: first, winner: "", line: [] };
+  }
+  function evaluate(board) {
+    for (var i = 0; i < LINES.length; i++) {
+      var l = LINES[i];
+      if (board[l[0]] && board[l[0]] === board[l[1]] && board[l[0]] === board[l[2]]) {
+        return { winner: board[l[0]], line: l };
+      }
+    }
+    if (board.every(Boolean)) return { winner: "draw", line: [] };
+    return { winner: "", line: [] };
+  }
+
+  function cleanup() {
+    try { if (conn) conn.close(); } catch (e) {}
+    try { if (peer) peer.destroy(); } catch (e) {}
+    conn = null; peer = null; state = null;
+    score = { X: 0, O: 0, draws: 0 };
+    starter = "X";
+  }
+  function backToLobby(msg) {
+    cleanup();
+    show("lobby");
+    $("lobbyMsg").textContent = msg || "";
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+
+  /* ---------- Host ---------- */
+  function createGame() {
+    cleanup();
+    isHost = true; myMark = "X";
+    roomCode = randomCode();
+    $("lobbyMsg").textContent = "Creating game...";
+    $("create").disabled = true;
+    peer = new Peer(PREFIX + roomCode);
+    peer.on("open", function () {
+      $("create").disabled = false;
+      $("lobbyMsg").textContent = "";
+      $("hostCode").textContent = roomCode;
+      show("waiting");
+    });
+    peer.on("connection", function (c) {
+      if (conn && conn.open) { c.on("open", function () { c.send({ type: "full" }); setTimeout(function () { c.close(); }, 200); }); return; }
+      conn = c;
+      conn.on("open", startAsHost);
+      conn.on("data", onData);
+      conn.on("close", onOpponentLeft);
+      conn.on("error", onOpponentLeft);
+    });
+    peer.on("error", function (err) {
+      $("create").disabled = false;
+      if (err.type === "unavailable-id") { createGame(); return; }
+      backToLobby("Could not create a game (" + err.type + "). Check your connection and try again.");
+    });
+  }
+  function startAsHost() {
+    starter = "X";
+    state = freshState(starter);
+    $("roomLabel").textContent = roomCode;
+    show("game");
+    conn.send({ type: "hello" });
+    broadcast();
+  }
+  function broadcast() {
+    if (conn && conn.open) conn.send({ type: "state", state: state, score: score, starter: starter });
+    render();
+  }
+  function applyMove(i, mark) {
+    if (!state || state.winner || state.turn !== mark || state.board[i]) return;
+    state.board[i] = mark;
+    var r = evaluate(state.board);
+    state.winner = r.winner; state.line = r.line;
+    if (r.winner === "draw") score.draws++;
+    else if (r.winner) score[r.winner]++;
+    else state.turn = mark === "X" ? "O" : "X";
+    broadcast();
+  }
+  function hostRematch() {
+    starter = starter === "X" ? "O" : "X";
+    state = freshState(starter);
+    broadcast();
+  }
+
+  /* ---------- Guest ---------- */
+  function joinGame(code) {
+    code = (code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (code.length !== 5) { $("lobbyMsg").textContent = "Enter the 5-character code."; return; }
+    cleanup();
+    isHost = false; myMark = "O"; roomCode = code;
+    $("lobbyMsg").textContent = "Connecting...";
+    $("join").disabled = true;
+    peer = new Peer();
+    peer.on("open", function () {
+      conn = peer.connect(PREFIX + code, { reliable: true });
+      var timer = setTimeout(function () {
+        if (!conn || !conn.open) { $("join").disabled = false; backToLobby("Could not reach that game. Check the code and try again."); }
+      }, 10000);
+      conn.on("open", function () {
+        clearTimeout(timer);
+        $("join").disabled = false;
+        $("roomLabel").textContent = roomCode;
+        $("lobbyMsg").textContent = "";
+        show("game");
+      });
+      conn.on("data", onData);
+      conn.on("close", onOpponentLeft);
+      conn.on("error", onOpponentLeft);
+    });
+    peer.on("error", function (err) {
+      $("join").disabled = false;
+      backToLobby(err.type === "peer-unavailable"
+        ? "No game found with that code."
+        : "Connection problem (" + err.type + "). Try again.");
+    });
+  }
+
+  /* ---------- Messages ---------- */
+  function onData(msg) {
+    if (!msg || typeof msg !== "object") return;
+    if (isHost) {
+      if (msg.type === "move" && Number.isInteger(msg.i) && msg.i >= 0 && msg.i < 9) applyMove(msg.i, "O");
+      else if (msg.type === "rematch" && state && state.winner) hostRematch();
+    } else {
+      if (msg.type === "state") { state = msg.state; score = msg.score; starter = msg.starter; render(); }
+      else if (msg.type === "full") backToLobby("That game already has two players.");
+    }
+  }
+  function onOpponentLeft() {
+    if (!state && !isHost) { return; }
+    if (isHost) {
+      // go back to waiting for a new opponent with the same code
+      conn = null; state = null; score = { X: 0, O: 0, draws: 0 };
+      show("waiting");
+    } else {
+      backToLobby("The host left the game.");
+    }
+  }
+
+  /* ---------- Render ---------- */
+  function buildBoard() {
+    var b = $("board");
+    b.textContent = "";
+    for (var i = 0; i < 9; i++) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cell";
+      btn.dataset.i = i;
+      btn.setAttribute("aria-label", "Cell " + (i + 1));
+      b.appendChild(btn);
+    }
+    b.addEventListener("click", function (e) {
+      var t = e.target.closest(".cell");
+      if (!t || !state) return;
+      var i = Number(t.dataset.i);
+      if (state.winner || state.turn !== myMark || state.board[i]) return;
+      if (isHost) applyMove(i, myMark);
+      else if (conn && conn.open) conn.send({ type: "move", i: i });
+    });
+  }
+  function render() {
+    if (!state) return;
+    var cells = $("board").children;
+    for (var i = 0; i < 9; i++) {
+      var c = cells[i], v = state.board[i];
+      c.textContent = v;
+      c.className = "cell" + (v ? " " + v : "") + (state.line.indexOf(i) >= 0 ? " win" : "");
+      c.disabled = !!v || !!state.winner || state.turn !== myMark;
+      c.setAttribute("aria-label", "Cell " + (i + 1) + (v ? ", " + v : ", empty"));
+    }
+    var st = $("status");
+    st.className = "status";
+    if (state.winner === "draw") st.textContent = "It's a draw.";
+    else if (state.winner) {
+      var won = state.winner === myMark;
+      st.textContent = won ? "You win!" : "Your opponent wins.";
+      st.className = "status " + (won ? "win" : "lose");
+    } else st.textContent = state.turn === myMark ? "Your turn" : "Waiting for your opponent...";
+    $("youAre").textContent = "You are " + myMark;
+    $("youAre").className = "pill" + (!state.winner && state.turn === myMark ? " on" : "");
+    var mine = score[myMark], theirs = score[myMark === "X" ? "O" : "X"];
+    $("score").textContent = mine + " - " + theirs + (score.draws ? " (" + score.draws + " draw" + (score.draws > 1 ? "s" : "") + ")" : "");
+    $("again").hidden = !state.winner;
+    $("gameMsg").textContent = state.winner ? "" : "Starting player alternates each round.";
+  }
+
+  /* ---------- UI wiring ---------- */
+  function copy(text, btn) {
+    var old = btn.textContent;
+    function done() { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = old; }, 1200); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { window.prompt("Copy this:", text); });
+    else window.prompt("Copy this:", text);
+  }
+  function shareLink() { return location.origin + location.pathname + "#" + roomCode; }
+
+  buildBoard();
+  $("create").addEventListener("click", createGame);
+  $("join").addEventListener("click", function () { joinGame($("joinCode").value); });
+  $("joinCode").addEventListener("keydown", function (e) { if (e.key === "Enter") joinGame(this.value); });
+  $("cancel").addEventListener("click", function () { backToLobby(""); });
+  $("leave").addEventListener("click", function () { backToLobby(""); });
+  $("copyCode").addEventListener("click", function () { copy(roomCode, this); });
+  $("copyLink").addEventListener("click", function () { copy(shareLink(), this); });
+  $("again").addEventListener("click", function () {
+    if (isHost) hostRematch();
+    else if (conn && conn.open) conn.send({ type: "rematch" });
+  });
+  window.addEventListener("beforeunload", function () { try { if (peer) peer.destroy(); } catch (e) {} });
+
+  // Auto-join from a shared link like page.html#ABCDE
+  var h = (location.hash || "").replace("#", "");
+  if (/^[A-Za-z0-9]{5}$/.test(h)) { $("joinCode").value = h.toUpperCase(); joinGame(h); }
+})();
+</script>
+</body>
+</html>
